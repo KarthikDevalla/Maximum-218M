@@ -14,8 +14,7 @@ print(f'Number of Training Tokens: {len(encoding_values):,}')
 GPT_CONFIG_219M={
     'vocab_size':50257,
     'vector_dim':768,
-    'context_length':1024, #can use 1024 which gpt-2 original coontext length but i will take higher compute power so we will stcik with 256
-    'n_heads':24,
+    'context_length':1024,
     'n_layers':20,
     'dropout_rate':0.2,
     'qkv_bias':False
@@ -73,7 +72,7 @@ class MultiHeadAttentionWithRope(nn.Module):
         self.d_out=d_out
         self.n_heads=n_heads
         self.head_dim=d_out//self.n_heads
-        self.proj=nn.Linear(d_out,d_out) # layer to combine head ouputs
+        self.proj=nn.Linear(d_out,d_out) 
         self.W_q=nn.Linear(d_in,d_out,bias=qkv_bias)
         self.W_k=nn.Linear(d_in,d_out,bias=qkv_bias)
         self.W_v=nn.Linear(d_in,d_out,bias=qkv_bias)
@@ -93,9 +92,8 @@ class MultiHeadAttentionWithRope(nn.Module):
         return torch.cat((-x2, x1), dim=-1)
         
     def _apply_rotary_pos_emb(self, x, cos, sin):
-        # x shape: [batch, heads, seq_len, head_dim]
-        cos = cos.view(1, 1, cos.shape[0], cos.shape[1])  # [1, 1, seq_len, head_dim]
-        sin = sin.view(1, 1, sin.shape[0], sin.shape[1])  # [1, 1, seq_len, head_dim]
+        cos = cos.view(1, 1, cos.shape[0], cos.shape[1]) 
+        sin = sin.view(1, 1, sin.shape[0], sin.shape[1]) 
         return (x * cos) + (self._rotate_half(x) * sin)
       
 
@@ -114,8 +112,7 @@ class MultiHeadAttentionWithRope(nn.Module):
         values_matrix=values_matrix.transpose(1,2)
 
         cos, sin = self._compute_rope_embeddings(num_tokens)
-        
-        # Apply rotary embeddings to queries and keys
+    
         queries_matrix = self._apply_rotary_pos_emb(queries_matrix, cos, sin)
         keys_matrix = self._apply_rotary_pos_emb(keys_matrix, cos, sin)
         
@@ -131,15 +128,13 @@ class LayerNorm(nn.Module):
     def __init__(self, vector_dim):
         super().__init__()
         self.eps=1e-5
-        # just additional params for smoother training
         self.shift=nn.Parameter(torch.zeros(vector_dim))
         self.scale=nn.Parameter(torch.ones(vector_dim))
     
     def forward(self,x):
         mean=x.mean(dim=-1,keepdim=True)
-        variance=x.var(dim=-1,keepdim=True, unbiased=False) # related to bezels correction 
-        #where we use n-1 instead of n, bu ti doesnt really matter as LLM have huge number of params and this precision is negligible.
-        normalized_values=(x-mean)/torch.sqrt(variance+self.eps) # added a small number to prevent zero division error
+        variance=x.var(dim=-1,keepdim=True, unbiased=False) 
+        normalized_values=(x-mean)/torch.sqrt(variance+self.eps) 
         return self.scale*normalized_values+self.shift
 
 class GeGLU(nn.Module):
@@ -153,9 +148,9 @@ class GeGLU(nn.Module):
 class FeedForward(nn.Module):
     def __init__(self,cfg):
         super().__init__()
-        self.layers=nn.Sequential(nn.Linear(cfg['vector_dim'],cfg['vector_dim']*4),# the second layer has 4 times more neurons that the input for expansion.
-                                   GeGLU(), # using GeGLU ---->modified from GeLU
-       nn.Linear(cfg['vector_dim']*4,cfg['vector_dim'])) # contraction
+        self.layers=nn.Sequential(nn.Linear(cfg['vector_dim'],cfg['vector_dim']*4),
+                                   GeGLU(), 
+       nn.Linear(cfg['vector_dim']*4,cfg['vector_dim'])
         
     def forward(self,x):
         return self.layers(x)
@@ -222,7 +217,7 @@ def generate_next_word(idx,max_new_tokens,model,context_length,temperature=0.0,t
 
         if temperature>0.0:
             last_row=last_row/temperature
-            probs=torch.softmax(last_row,dim=-1)#----------> Temperature scaling with topk sampling.
+            probs=torch.softmax(last_row,dim=-1)
             idx_last=torch.multinomial(probs,num_samples=1)
         else:
             idx_last=torch.argmax(probs,dim=-1,keepdim=True)
@@ -232,12 +227,12 @@ def generate_next_word(idx,max_new_tokens,model,context_length,temperature=0.0,t
         idx=torch.cat((idx,idx_last),dim=1)
     return idx
 
-def calculate_batch_loss(input_batch,target_batch,model,device): # loss per batch
+def calculate_batch_loss(input_batch,target_batch,model,device): 
     input_batch,target_batch=input_batch.to(device),target_batch.to(device)
     logits=model(input_batch)
     return torch.nn.functional.cross_entropy(logits.flatten(0,1),target_batch.flatten())
 
-def calculate_loss(dataloader,model,device,num_batches=None): # total loss of the model
+def calculate_loss(dataloader,model,device,num_batches=None):
     total_loss=0
     if dataloader is None:
         return 
@@ -256,20 +251,20 @@ def calculate_loss(dataloader,model,device,num_batches=None): # total loss of th
     
 def text_to_token(start_words,tokenizer):
     encoded_words=tokenizer.encode(start_words)
-    return torch.tensor(encoded_words).unsqueeze(0) # added a batch dimension
+    return torch.tensor(encoded_words).unsqueeze(0)
 
 
 def token_to_text(logits,tokenizer):
-    decoded_words=logits.squeeze(0) # remove batch dimension
+    decoded_words=logits.squeeze(0) 
     return tokenizer.decode(decoded_words.tolist())
 
 
 def evaluate_model(train_loader, validation_loader,model,device,eval_iter):
-    model.eval() # setting the model to eval while evaluating losses and stuff
+    model.eval()
     with torch.no_grad():
         train_loss=calculate_loss(train_loader,model,device,num_batches=eval_iter)
         test_loss=calculate_loss(validation_loader,model,device,num_batches=eval_iter)
-    model.train() # setting the model back to train after we are done calculating losses and stuff
+    model.train() 
     return train_loss,test_loss
 
 def generate_text(model,tokenizer,start_words,device,temperature,top_k,eos_id,cfg):
@@ -291,27 +286,25 @@ def pre_training(model,train_loader,validation_loader,epochs,device,optimizer,ev
     for epoch in range(epochs):
         model.train()
         for input_data, target_data in train_loader:
-            optimizer.zero_grad() # zero the gradients for proper updates during training
-            loss=calculate_batch_loss(input_data,target_data,model,device) # loss for one input and output.
-            loss.backward()# calculate gradients
-            optimizer.step() # update the gradients
+            optimizer.zero_grad() 
+            loss=calculate_batch_loss(input_data,target_data,model,device) 
+            loss.backward()
+            optimizer.step() 
             global_step+=1
 
-            # this step is optional, but essential for checking if the model is learning.
-            if global_step % eval_freq==0: # print the training loss and validation loss for every eval_freq: if eval_freq is 5 print it after every epochs
+            
+            if global_step % eval_freq==0:
                 train_loss,valid_loss=evaluate_model(train_loader,validation_loader,model,device,eval_iter)
-                # you'll get the loss for eval_freq number of batches
                 train_loss_list.append(train_loss)
                 validation_loss_list.append(valid_loss)
                 print(f'Epoch-{epoch+1} Step-{global_step}====> Train loss: {train_loss:3f} Val loss: {valid_loss:3f}')
                 
-        # printing the next tokens for every epoch to see if it makes sense.
+
         generate_text(model,tokenizer,start_words,device,temperature,top_k,eos_id,cfg)
     return train_loss_list,validation_loss_list
 
 
-# PRE-TRAINING 
-#=====================================================================================================
+
 torch.manual_seed(666)
 import time
 start=time.time()
@@ -337,9 +330,7 @@ plt.plot(torch.arange(len(train_loss_list)),validation_loss_list,label='Validati
 plt.legend()
 plt.show()
 
-# INFERENCE/ ADDITIONAL TRAINING
-#=======================================================================================================
-from huggingface_hub import hf_hub_download
+
 
 hf_hub_download(repo_id="InHUMAN/Maximum-218M", filename="model_and_optimizer.pth",local_dir='/teamspace/studios/this_studio')
 
@@ -347,7 +338,7 @@ checkpoint=torch.load('/teamspace/studios/this_studio/model_and_optimizer.pth',m
 model.load_state_dict(checkpoint['model_state'])
 optimizer=torch.optim.AdamW(model.parameters(),lr=3e-4,weight_decay=0.1,betas=(0.9,0.95),eps=1e-8)
 optimizer.load_state_dict(checkpoint['optimizer_state'])
-model.eval() # set this to train if you want to train the model further
+model.eval() 
 
 from transformers import GPT2Tokenizer
 
