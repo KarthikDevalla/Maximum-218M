@@ -29,4 +29,4 @@ Key Features:
 - Helps mitigate vanishing gradient problems
 
 ## Acknowledgements:
-Thank you Dr. Raj Dandekar !(https://github.com/RajatDandekar)
+Thank you [Dr. Raj Dandekar](https://github.com/RajatDandekar)
