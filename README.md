@@ -28,3 +28,5 @@ Key Features:
 - Combines the benefits of gating mechanisms with ELU's properties
 - Helps mitigate vanishing gradient problems
 
+Acknowledgements:
+Thank you Dr. Raj Dandekar
